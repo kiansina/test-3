@@ -1,23 +1,29 @@
 import streamlit as st
 import pandas as pd
-import psycopg2
 import random
+import time
+from google.oauth2 import service_account
+from gspread_pandas import Spread,Client
 
+scope=["https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/spreadsheets"]
+credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=scope,
+)
 
-#from .hasher import Hasher
-#from .authenticate import Authenticate
-#hashed_passwords = stauth.Hasher(['123', '456']).generate()
+client=Client(scope=["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"], creds=credentials)
+spreadsheetname="Questionnaire_test"
+#s=Spread(spreadsheetname,client=client)
+#sh=client.open(spreadsheetname)
 
+@st.experimental_singleton
+def faster():
+    return client.open(spreadsheetname),Spread(spreadsheetname,client=client)
 
-# Initialize connection.
-# Uses st.experimental_singleton to only run once.
-#@st.experimental_singleton
-#def init_connection():
-    #return psycopg2.connect(**st.secrets["postgres"])
+sh,s=faster()
 
-#conn = init_connection()
-# streamlit_app.py
-
+df=pd.DataFrame(sh.worksheet('test').get_all_records())
 
 questions = {
   "1": "2+2=?",
@@ -29,16 +35,24 @@ questions = {
   "7": "1, 4, 5, 9, ?",
   "8": "2, 3, 5, 7, 11, ?",
   "9": "quale è il capitale di Italia?",
-  "10": "se giusto è sbaglio è sbaglio è sbaglio, che cosa è giusto?"
+  "10": "se giusto è sbaglio e sbaglio è sbaglio, che cosa è giusto?"
 }
 
-
-
-
+choices = {
+"1": [("4","T"),("8","F"),("0","F")],
+"2": [("9","T"),("6","F"),("8","F")],
+"3": [("Cielo","T"),("Rosa","F"),("Viola","F")],
+"4": [("Cibo","T"),("Pasta","F"),("Coffee","F")],
+"5": [("Nonna","T"),("Zia","F"),("Cugina","F")],
+"6": [("16","T"),("12","F"),("18","F")],
+"7": [("14","T"),("16","F"),("18","F")],
+"8": [("13","T"),("16","F"),("14","F")],
+"9": [("Roma","T"),("Milano","F"),("Torino","F")],
+"10": [("Nulla","T"),("Tutto","F"),("Sbaglio","F")],
+}
 
 def check_password():
     """Returns `True` if the user had a correct password."""
-
     def password_entered():
         """Checks whether a password entered by the user is correct."""
         if (
@@ -48,7 +62,7 @@ def check_password():
         ):
             st.session_state["password_correct"] = True
             del st.session_state["password"]  # don't store username + password
-            del st.session_state["username"]
+            #del st.session_state["username"]
         else:
             st.session_state["password_correct"] = False
 
@@ -71,23 +85,50 @@ def check_password():
         # Password correct.
         return True
 
+if "t0" not in st.session_state:
+    st.session_state["t0"] = time.time()
+if "st" not in st.session_state:
+    st.session_state["st"]= True
+if "usercheck" not in st.session_state:
+    st.session_state['usercheck']=False
+if "rn" not in st.session_state:
+    st.session_state["rn"] = random.sample(range(1, 10), 5)
 
 if check_password():
     @st.cache(allow_output_mutation=True)
     def get_data():
         return []
-    if "rn" not in st.session_state:
-        st.session_state["rn"] = random.sample(range(1, 10), 5)
-    Nome = st.text_input("Nome:")
-    Cognome = st.text_input("Cognome:")
-    sodisfazione = st.slider("Sodisfazione", 0, 100)
-    Qa=st.text_input(questions[str(st.session_state["rn"][0])])
-    Qb=st.text_input(questions[str(st.session_state["rn"][1])])
-    Qc=st.text_input(questions[str(st.session_state["rn"][2])])
-    Qd=st.text_input(questions[str(st.session_state["rn"][3])])
-    Qe=st.text_input(questions[str(st.session_state["rn"][4])])
-    if st.button("Submit"):
-        get_data().append({"Nome": Nome,"Cognome":Cognome, "Livello sodisfazione": sodisfazione, "q1": Qa, "q2": Qb, "q3": Qc, "q4": Qd, "q5": Qe})
-    #
-    st.write(pd.DataFrame(get_data()))
-    A=pd.DataFrame(get_data())
+    Username=st.text_input("Username:")
+    if st.button("check"):
+        if Username in df['Username'].to_list():
+            st.session_state['usercheck']=False
+            st.write('l\'esame gia registrato 😊.')
+        elif Username not in st.secrets['passwords'].keys():
+            st.write('😕 User not known')
+        else:
+            st.session_state['usercheck']=True
+            st.session_state['st']=True
+    if st.session_state['usercheck']==True:
+        if st.session_state["st"]==True:
+            Nome = st.text_input("Nome:")
+            Cognome = st.text_input("Cognome:")
+            sodisfazione = st.slider("Sodisfazione", 0, 100)
+            Qa=st.radio(questions[str(st.session_state["rn"][0])],[x[0] for x in choices[str(st.session_state["rn"][0])]])
+            Qb=st.text_input(questions[str(st.session_state["rn"][1])])
+            Qc=st.text_input(questions[str(st.session_state["rn"][2])])
+            Qd=st.text_input(questions[str(st.session_state["rn"][3])])
+            Qe=st.text_input(questions[str(st.session_state["rn"][4])])
+            if st.button("Submit"):
+                get_data().append({"Username":Username,"Nome": Nome,"Cognome":Cognome, "Livello sodisfazione": sodisfazione, "q1": Qa, "q2": Qb, "q3": Qc, "q4": Qd, "q5": Qe, "time":time.time()-st.session_state["t0"]})
+                A=pd.DataFrame(get_data())
+                st.write(A)
+            st.write('Se Lei è sicuro da chiudere l\'esamae, premi conferma')
+            if st.button("Confirm"):
+                L=len(pd.DataFrame(get_data()))
+                dx=df.append(pd.DataFrame(get_data()).loc[L-1,:],ignore_index=True)
+                s.df_to_sheet(dx,sheet='test',index=False)
+                st.title('la sua esame è finito 😊.')
+                st.title("Grazie per la collaborazione! 😍")
+                st.session_state["st"]=False
+        else:
+            st.title('l\'esame gia registrato 😊.')
