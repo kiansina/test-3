@@ -113,7 +113,7 @@ if check_password():
             Nome = st.text_input("Nome:")
             Cognome = st.text_input("Cognome:")
             sodisfazione = st.slider("Sodisfazione", 0, 100)
-            Qa=st.radio(questions[str(st.session_state["rn"][0])],[x[0] for x in choices[str(st.session_state["rn"][0])]])
+            Qa=st.radio(questions[str(st.session_state["rn"][0])],random.shuffle([x[0] for x in choices[str(st.session_state["rn"][0])]]))
             Qb=st.text_input(questions[str(st.session_state["rn"][1])])
             Qc=st.text_input(questions[str(st.session_state["rn"][2])])
             Qd=st.text_input(questions[str(st.session_state["rn"][3])])
